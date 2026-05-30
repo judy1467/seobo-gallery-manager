@@ -100,7 +100,7 @@ def generate_new_entry(caption: str, date: str, image_numbers: List[int]) -> str
 
 def add_product_to_html(html: str, caption: str, date: str, image_numbers: List[int]) -> Tuple[Optional[str], str]:
     """
-    gallery.html HTML에 새 제품 항목을 추가한다.
+    gallery.html HTML에 새 제품 항목을 **맨 위**에 추가한다.
     
     Returns:
         (수정된 HTML, 에러 메시지)
@@ -108,25 +108,22 @@ def add_product_to_html(html: str, caption: str, date: str, image_numbers: List[
     """
     new_entry = generate_new_entry(caption, date, image_numbers)
 
-    # productGroups 배열의 마지막 항목 뒤에 삽입
-    # 방법: 마지막 '];' 앞에 새 항목 추가 (단일 이미지 섹션 앞에)
-    # 단일 이미지 그룹 마지막 줄 패턴 찾기
-    match = re.search(r"^\s*\]\s*;\s*$", html, re.MULTILINE)
+    # productGroups 배열의 시작 '[' 찾기
+    match = re.search(r"const\s+productGroups\s*=\s*\[", html)
     if not match:
-        return None, "productGroups 배열의 끝(];)을 찾을 수 없습니다."
+        return None, "productGroups 배열의 시작을 찾을 수 없습니다."
 
-    pos = match.start()
-    # 마지막 항목 뒤에 쉼표 추가 + 새 항목
-    # 배열의 마지막 줄 앞에 삽입
-    # '];' 바로 앞에 새 항목 + 쉼표 추가
-    prev_line_end = html.rfind("\n", 0, pos)
-    before = html[:pos].rstrip()
-    after = html[pos:]
+    # '[' 뒤에 삽입
+    insert_pos = match.end()
 
-    # 마지막 항목에 쉼표가 없으면 추가
-    if not before.rstrip().endswith(","):
-        modified = before + ",\n" + new_entry + "\n" + after
+    # '[' 뒤에 오는 내용 (공백/줄바꿈 제외)
+    rest = html[insert_pos:].lstrip()
+    
+    if rest.startswith("]"):
+        # 빈 배열: 그냥 새 항목 추가
+        modified = html[:insert_pos] + "\n" + new_entry + "\n" + html[insert_pos:]
     else:
-        modified = before + "\n" + new_entry + "\n" + after
+        # 기존 항목이 있으면 새 항목 + 쉼표를 맨 앞에 삽입
+        modified = html[:insert_pos] + "\n" + new_entry + ",\n" + html[insert_pos:]
 
     return modified, ""
