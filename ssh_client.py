@@ -182,20 +182,31 @@ class SSHClient:
 
     def get_next_image_number(self) -> int:
         """원격 서버에서 다음 sustube 이미지 번호를 찾는다."""
+        # 1) sustube*.webp 파일을 ls로 정렬하여 가장 큰 번호 찾기
+        cmd = (
+            f'ls {self.settings["remote_path"]}/images/sustube/sustube*.webp '
+            f'2>/dev/null | sed "s/.*sustube//;s/\\.webp//" | sort -n | tail -1'
+        )
+        success, output = self.exec_command(cmd)
+        if success and output.strip():
+            try:
+                return int(output.strip()) + 1
+            except ValueError:
+                pass
+
+        # 2) fallback: find로 sustube*.webp 파일 개수 확인 후 번호 추정
         success, output = self.exec_command(
-            f'ls {self.settings["remote_path"]}/images/sustube/ 2>/dev/null | grep -oP "sustube\\K\\d+(?=\\.webp)" | sort -n | tail -1'
+            f'find {self.settings["remote_path"]}/images/sustube/ '
+            f'-name "sustube*.webp" 2>/dev/null | sort -t"e" -k2 -n | tail -1 '
+            f'| sed "s/.*sustube//;s/\\.webp//"'
         )
         if success and output.strip():
             try:
                 return int(output.strip()) + 1
             except ValueError:
                 pass
-        # sustube 디렉토리가 없거나 파일이 없는 경우
-        success, output = self.exec_command(
-            f'find {self.settings["remote_path"]}/images/sustube/ -name "sustube*.webp" 2>/dev/null | wc -l'
-        )
-        if success:
-            return 1  # 첫 번째 번호부터 시작
+
+        # 3) 파일이 전혀 없으면 1부터 시작
         return 1
 
     def get_remote_gallery_html(self) -> Optional[str]:
