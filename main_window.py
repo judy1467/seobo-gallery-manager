@@ -486,13 +486,30 @@ class GalleryManager(QMainWindow):
         if not self.ssh.is_connected():
             return
 
-        # 다음 이미지 번호
+        # 다음 이미지 번호 (내부 저장, 폴더 선택 시 표시)
         self.next_image_number = self.ssh.get_next_image_number()
-        self.number_label.setText(f"sustube{self.next_image_number}")
-
-        self.log(f"📊 다음 번호: sustube{self.next_image_number}")
-
         self.refresh_btn.setEnabled(True)
+
+        # 이미 선택된 폴더가 있다면 번호 갱신
+        self._update_number_display()
+
+    def _update_number_display(self):
+        """선택된 폴더 기준으로 다음 번호 표시"""
+        folder = self.selected_process_folder
+        if not folder or not self.ssh.is_connected():
+            self.number_label.setText("폴더 선택 후 표시")
+            return
+        try:
+            if folder == "sustube":
+                self.number_label.setText(f"sustube{self.next_image_number}")
+                self.log(f"  🔢 다음 번호: sustube{self.next_image_number}")
+            else:
+                next_num = self.ssh.get_next_process_number(folder)
+                self.number_label.setText(f"{folder}{next_num}")
+                self.log(f"  🔢 다음 번호: {folder}{next_num}")
+        except Exception as e:
+            self.number_label.setText(f"{folder}?")
+            self.log(f"  ⚠️ 번호 확인 실패: {e}")
 
     def refresh_data(self):
         self.load_remote_info()
@@ -505,14 +522,7 @@ class GalleryManager(QMainWindow):
         self.log(f"📁 선택한 폴더: {self.selected_process_folder}")
 
         # 선택한 폴더 기준 다음 번호 표시
-        if self.ssh.is_connected():
-            try:
-                next_num = self.ssh.get_next_process_number(self.selected_process_folder)
-                self.number_label.setText(f"{self.selected_process_folder}{next_num}")
-                self.log(f"  🔢 다음 번호: {self.selected_process_folder}{next_num}")
-            except Exception as e:
-                self.number_label.setText(f"{self.selected_process_folder}?")
-                self.log(f"  ⚠️ 번호 확인 실패: {e}")
+        self._update_number_display()
 
     def _update_add_button(self):
         """사진 추가 버튼 활성화 조건 체크"""
@@ -525,6 +535,7 @@ class GalleryManager(QMainWindow):
         self.process_folder_list.clear()
         self.selected_process_folder = None
         self._update_add_button()
+        self._update_number_display()
 
         if not self.ssh.is_connected():
             self.process_folder_list.addItem("⚠️ 라즈베리파이에 연결 후 사용해주세요.")
