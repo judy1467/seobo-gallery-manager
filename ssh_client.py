@@ -3,10 +3,19 @@
 import os
 import re
 import json
+import sys
 import paramiko
 from typing import Optional, Dict, List, Tuple
 
-SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "settings.json")
+
+def get_base_dir() -> str:
+    """실행 파일(.exe / .py)이 위치한 디렉토리 반환 (PyInstaller 호환)"""
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+SETTINGS_FILE = os.path.join(get_base_dir(), "settings.json")
 
 DEFAULT_SETTINGS = {
     "host": "",
