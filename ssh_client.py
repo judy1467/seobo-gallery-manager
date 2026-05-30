@@ -22,11 +22,15 @@ DEFAULT_SETTINGS = {
 
 
 def load_settings() -> Dict:
-    """SSH 설정을 JSON에서 불러온다."""
+    """SSH 설정을 JSON에서 불러온다. (이전 키 자동 마이그레이션)"""
     if os.path.exists(SETTINGS_FILE):
         try:
             with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-                return {**DEFAULT_SETTINGS, **json.load(f)}
+                raw = json.load(f)
+            # 이전 버전 호환: local_image_dir → pi_image_dir
+            if "local_image_dir" in raw and "pi_image_dir" not in raw:
+                raw["pi_image_dir"] = raw.pop("local_image_dir")
+            return {**DEFAULT_SETTINGS, **raw}
         except Exception:
             pass
     return dict(DEFAULT_SETTINGS)
