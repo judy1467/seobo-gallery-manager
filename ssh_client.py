@@ -15,6 +15,7 @@ DEFAULT_SETTINGS = {
     "password": "",
     "use_key": False,
     "key_path": "",
+    "local_image_dir": "",
     "remote_path": "/var/www/html",
     "gallery_file": "gallery.html",
 }
@@ -208,6 +209,42 @@ class SSHClient:
 
         # 3) 파일이 전혀 없으면 1부터 시작
         return 1
+
+    def get_next_process_number(self, folder_name: str) -> int:
+        """원격 서버에서 특정 공정 폴더의 다음 이미지 번호를 찾는다."""
+        prefix = folder_name
+        remote_dir = f'{self.settings["remote_path"]}/images/{folder_name}'
+
+        # 1) {prefix}*.webp 파일을 ls로 정렬
+        cmd = (
+            f'ls {remote_dir}/{prefix}*.webp '
+            f'2>/dev/null | sed "s/.*{prefix}//;s/\\.webp//" | sort -n | tail -1'
+        )
+        success, output = self.exec_command(cmd)
+        if success and output.strip():
+            try:
+                return int(output.strip()) + 1
+            except ValueError:
+                pass
+
+        # 2) fallback: find 사용
+        success, output = self.exec_command(
+            f'find {remote_dir}/ '
+            f'-name "{prefix}*.webp" 2>/dev/null '
+            f'| sed "s/.*{prefix}//;s/\\.webp//" | sort -n | tail -1'
+        )
+        if success and output.strip():
+            try:
+                return int(output.strip()) + 1
+            except ValueError:
+                pass
+
+        # 3) 파일 없으면 1부터
+        return 1
+
+    def get_remote_process_folder(self, folder_name: str) -> str:
+        """공정 사진 폴더의 원격 경로"""
+        return f'{self.settings["remote_path"]}/images/{folder_name}'
 
     def get_remote_gallery_html(self) -> Optional[str]:
         """원격 gallery.html 읽기"""

@@ -87,6 +87,16 @@ class SettingsDialog(QDialog):
         self.gallery_file_input.setPlaceholderText("예: gallery.html")
         form.addRow("갤러리 파일명:", self.gallery_file_input)
 
+        # --- 로컬 이미지 폴더 경로 ---
+        local_row = QHBoxLayout()
+        self.local_dir_input = QLineEdit()
+        self.local_dir_input.setPlaceholderText("로컬 이미지 폴더 (예: C:\\Users\\judy1\\images)")
+        local_row.addWidget(self.local_dir_input, 1)
+        self.browse_local_btn = QPushButton("📂 찾기")
+        self.browse_local_btn.clicked.connect(self._browse_local_dir)
+        local_row.addWidget(self.browse_local_btn)
+        form.addRow("로컬 이미지 폴더:", local_row)
+
         layout.addLayout(form)
 
         # 버튼
@@ -112,6 +122,7 @@ class SettingsDialog(QDialog):
         self.username_input.setText(self.settings.get("username", ""))
         self.password_input.setText(self.settings.get("password", ""))
         self.key_path_input.setText(self.settings.get("key_path", ""))
+        self.local_dir_input.setText(self.settings.get("local_image_dir", ""))
 
         use_key = self.settings.get("use_key", False)
         if use_key:
@@ -130,6 +141,7 @@ class SettingsDialog(QDialog):
             "password": self.password_input.text().strip(),
             "use_key": self.key_radio.isChecked(),
             "key_path": self.key_path_input.text().strip(),
+            "local_image_dir": self.local_dir_input.text().strip(),
             "remote_path": self.remote_path_input.text().strip(),
             "gallery_file": self.gallery_file_input.text().strip(),
         }
@@ -151,6 +163,15 @@ class SettingsDialog(QDialog):
         )
         if path:
             self.key_path_input.setText(path)
+
+    def _browse_local_dir(self):
+        """로컬 이미지 폴더 선택"""
+        path = QFileDialog.getExistingDirectory(
+            self, "로컬 이미지 폴더 선택",
+            self.local_dir_input.text() or os.path.expanduser("~"),
+        )
+        if path:
+            self.local_dir_input.setText(path)
 
     def test_connection(self):
         """설정값으로 SSH 연결 테스트"""
