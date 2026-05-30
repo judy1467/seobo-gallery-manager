@@ -221,6 +221,17 @@ class GalleryManager(QMainWindow):
         process_layout = QVBoxLayout(process_group)
         process_layout.setSpacing(6)
 
+        # 경로 표시 + 설정 열기
+        path_row = QHBoxLayout()
+        self.pi_path_label = QLabel("경로: 설정 필요")
+        self.pi_path_label.setStyleSheet("color: #94a3b8; font-size: 11px;")
+        path_row.addWidget(self.pi_path_label, 1)
+        self.set_pi_path_btn = QPushButton("⚙️ 경로 설정")
+        self.set_pi_path_btn.setFixedHeight(24)
+        self.set_pi_path_btn.clicked.connect(self.open_settings)
+        path_row.addWidget(self.set_pi_path_btn)
+        process_layout.addLayout(path_row)
+
         self.process_folder_list = QListWidget()
         self.process_folder_list.setMinimumHeight(120)
         self.process_folder_list.itemClicked.connect(self._on_process_folder_selected)
@@ -334,6 +345,7 @@ class GalleryManager(QMainWindow):
                 self._update_connection_status()
                 self.log(msg)
                 self.load_remote_info()
+                self.refresh_process_folders()
             else:
                 self.connect_btn.setText("🔌 연결")
                 QMessageBox.warning(self, "연결 실패", msg)
@@ -365,6 +377,8 @@ class GalleryManager(QMainWindow):
                 self.ssh.disconnect()
                 self._update_connection_status()
             self.log("⚙️ 설정 저장됨")
+            # 경로 라벨 갱신
+            self.refresh_process_folders()
 
     def select_images(self):
         files, _ = QFileDialog.getOpenFileNames(
@@ -471,6 +485,14 @@ class GalleryManager(QMainWindow):
         self.process_folder_list.clear()
         self.selected_process_folder = None
         self.process_add_btn.setEnabled(False)
+
+        pi_dir = self.ssh.settings.get("pi_image_dir", "")
+        if pi_dir:
+            self.pi_path_label.setText(f"📁 {pi_dir}")
+            self.pi_path_label.setStyleSheet("color: #334155; font-size: 11px;")
+        else:
+            self.pi_path_label.setText("경로: 설정 필요")
+            self.pi_path_label.setStyleSheet("color: #ef4444; font-size: 11px;")
 
         if not self.ssh.is_connected():
             self.process_folder_list.addItem("⚠️ 라즈베리파이에 연결 후 사용해주세요.")

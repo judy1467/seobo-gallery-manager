@@ -88,14 +88,9 @@ class SettingsDialog(QDialog):
         form.addRow("갤러리 파일명:", self.gallery_file_input)
 
         # --- 라즈베리파이 이미지 폴더 경로 ---
-        pi_row = QHBoxLayout()
         self.pi_dir_input = QLineEdit()
         self.pi_dir_input.setPlaceholderText("라즈베리파이 경로 (예: /home/pi/images)")
-        pi_row.addWidget(self.pi_dir_input, 1)
-        self.browse_pi_dir_btn = QPushButton("📂 찾기")
-        self.browse_pi_dir_btn.clicked.connect(self._browse_pi_dir)
-        pi_row.addWidget(self.browse_pi_dir_btn)
-        form.addRow("라즈베리파이 이미지 폴더:", pi_row)
+        form.addRow("📁 라즈베리파이 이미지 폴더:", self.pi_dir_input)
 
         layout.addLayout(form)
 
@@ -163,15 +158,6 @@ class SettingsDialog(QDialog):
         )
         if path:
             self.key_path_input.setText(path)
-
-    def _browse_pi_dir(self):
-        """라즈베리파이 이미지 폴더 선택"""
-        path = QFileDialog.getExistingDirectory(
-            self, "라즈베리파이 이미지 폴더 선택",
-            self.pi_dir_input.text() or os.path.expanduser("~"),
-        )
-        if path:
-            self.pi_dir_input.setText(path)
 
     def test_connection(self):
         """설정값으로 SSH 연결 테스트"""
