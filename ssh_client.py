@@ -121,15 +121,31 @@ class SSHClient:
         except Exception as e:
             return False, str(e)
 
-    def read_remote_file(self, remote_path: str) -> Optional[str]:
-        """원격 파일을 읽어 문자열로 반환"""
+    def read_remote_file(self, remote_path: str) -> Tuple[Optional[str], str]:
+        """원격 파일을 읽어 문자열로 반환. (내용|None, 에러메시지)"""
         if not self._sftp:
-            return None
+            return None, "SFTP 연결 없음"
+        try:
+            # 파일 존재 확인
+            self._sftp.stat(remote_path)
+        except FileNotFoundError:
+            return None, f"파일 없음: {remote_path}"
+        except Exception as e:
+            return None, f"파일 접근 오류 ({remote_path}): {str(e)}"
         try:
             with self._sftp.open(remote_path, "r", encoding="utf-8") as f:
-                return f.read()
-        except Exception:
-            return None
+                content = f.read()
+            return content, ""
+        except UnicodeDecodeError:
+            # UTF-8 실패 시 시스템 기본 인코딩으로 재시도
+            try:
+                with self._sftp.open(remote_path, "r") as f:
+                    content = f.read()
+                return content, ""
+            except Exception as e:
+                return None, f"파일 읽기 오류 ({remote_path}): {str(e)}"
+        except Exception as e:
+            return None, f"파일 읽기 오류 ({remote_path}): {str(e)}"
 
     def write_remote_file(self, remote_path: str, content: str) -> Tuple[bool, str]:
         """원격 파일에 문자열 쓰기"""
@@ -190,4 +206,12 @@ class SSHClient:
     def get_remote_gallery_html(self) -> Optional[str]:
         """원격 gallery.html 읽기"""
         remote_file = f'{self.settings["remote_path"]}/{self.settings["gallery_file"]}'
-        return self.read_remote_file(remote_file)
+        content, err = self.read_remote_file(remote_file)
+        if err:
+            # 에러는 caller에서 처리하도록 None 반환
+            return None
+        return content
+
+    def get_remote_gallery_path(self) -> str:
+        """gallery.html의 전체 원격 경로"""
+        return f'{self.settings["remote_path"]}/{self.settings["gallery_file"]}'

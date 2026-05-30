@@ -395,14 +395,16 @@ class GalleryManager(QMainWindow):
         self.number_label.setText(f"sustube{self.next_image_number}")
 
         # 등록된 제품 수
-        html = self.ssh.get_remote_gallery_html()
-        if html:
-            captions = get_all_captions(html)
+        remote_file = self.ssh.get_remote_gallery_path()
+        content, err = self.ssh.read_remote_file(remote_file)
+        if content:
+            captions = get_all_captions(content)
             self.count_label.setText(f"등록된 제품: {len(captions)}개")
             self.log(f"📊 원격 갤러리: {len(captions)}개 제품, 다음 번호: sustube{self.next_image_number}")
         else:
             self.count_label.setText("gallery.html 읽기 실패")
-            self.log("⚠️ 원격 gallery.html을 읽을 수 없습니다.")
+            self.log(f"⚠️ {err}")
+            self.log(f"   확인 경로: {remote_file}")
 
         self.refresh_btn.setEnabled(True)
 
@@ -472,17 +474,17 @@ class GalleryManager(QMainWindow):
             # 3. gallery.html 수정
             self.log("📝 gallery.html 업데이트 중...")
             date_str = self.date_input.date().toString("yyyy-MM-dd")
-            html = self.ssh.get_remote_gallery_html()
+            remote_file = self.ssh.get_remote_gallery_path()
+            html, err = self.ssh.read_remote_file(remote_file)
             if not html:
-                raise Exception("원격 gallery.html을 읽을 수 없습니다.")
+                raise Exception(f"gallery.html 읽기 실패: {err}")
 
             modified_html, error = add_product_to_html(html, spec, date_str, image_numbers)
             if error:
                 raise Exception(error)
 
             # 4. 수정된 HTML 업로드
-            remote_html_path = f'{self.ssh.settings["remote_path"]}/{self.ssh.settings["gallery_file"]}'
-            ok, msg = self.ssh.write_remote_file(remote_html_path, modified_html)
+            ok, msg = self.ssh.write_remote_file(remote_file, modified_html)
             if not ok:
                 raise Exception(msg)
 
