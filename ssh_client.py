@@ -13,6 +13,8 @@ DEFAULT_SETTINGS = {
     "port": 22,
     "username": "",
     "password": "",
+    "use_key": False,
+    "key_path": "",
     "remote_path": "/var/www/html",
     "gallery_file": "gallery.html",
 }
@@ -54,15 +56,39 @@ class SSHClient:
 
             self._ssh = paramiko.SSHClient()
             self._ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            self._ssh.connect(
-                hostname=self.settings["host"],
-                port=int(self.settings.get("port", 22)),
-                username=self.settings["username"],
-                password=self.settings["password"],
-                timeout=10,
-            )
+
+            connect_kwargs = {
+                "hostname": self.settings["host"],
+                "port": int(self.settings.get("port", 22)),
+                "username": self.settings["username"],
+                "timeout": 10,
+            }
+
+            auth_mode = "key" if self.settings.get("use_key") else "password"
+
+            if auth_mode == "key":
+                key_path = self.settings.get("key_path", "")
+                # key_path가 없으면 기본 키(~/.ssh/id_rsa 등) 자동 탐색
+                if not key_path:
+                    key_path = os.path.expanduser("~/.ssh/id_rsa")
+                if os.path.exists(key_path):
+                    try:
+                        pkey = paramiko.RSAKey.from_private_key_file(key_path)
+                    except paramiko.SSHException:
+                        try:
+                            pkey = paramiko.Ed25519Key.from_private_key_file(key_path)
+                        except paramiko.SSHException:
+                            pkey = paramiko.ECDSAKey.from_private_key_file(key_path)
+                    connect_kwargs["pkey"] = pkey
+                else:
+                    return False, f"❌ 키 파일을 찾을 수 없음: {key_path}"
+            else:
+                connect_kwargs["password"] = self.settings["password"]
+
+            self._ssh.connect(**connect_kwargs)
             self._sftp = self._ssh.open_sftp()
-            return True, f"✅ 연결 성공: {self.settings['username']}@{self.settings['host']}"
+            auth_label = "키" if auth_mode == "key" else "비밀번호"
+            return True, f"✅ {auth_label} 인증 연결 성공: {self.settings['username']}@{self.settings['host']}"
         except Exception as e:
             self._ssh = None
             self._sftp = None

@@ -1,9 +1,11 @@
 """SSH 설정 다이얼로그"""
 
+import os
+
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
     QLineEdit, QSpinBox, QPushButton, QLabel,
-    QMessageBox, QDialogButtonBox,
+    QMessageBox, QDialogButtonBox, QRadioButton, QFileDialog,
 )
 from PySide6.QtCore import Qt
 from ssh_client import load_settings, save_settings
@@ -42,10 +44,40 @@ class SettingsDialog(QDialog):
         self.username_input.setPlaceholderText("예: pi")
         form.addRow("사용자명:", self.username_input)
 
+        # --- 인증 방식 선택 ---
+        auth_label = QLabel("인증 방식:")
+        layout.addWidget(auth_label)
+
+        auth_layout = QHBoxLayout()
+        self.password_radio = QRadioButton("🔑 비밀번호")
+        self.key_radio = QRadioButton("🔐 공개키/비밀키")
+        self.password_radio.toggled.connect(self._on_auth_changed)
+        auth_layout.addWidget(self.password_radio)
+        auth_layout.addWidget(self.key_radio)
+        auth_layout.addStretch()
+        layout.addLayout(auth_layout)
+
+        # 비밀번호 입력
         self.password_input = QLineEdit()
         self.password_input.setEchoMode(QLineEdit.Password)
         self.password_input.setPlaceholderText("SSH 비밀번호")
         form.addRow("비밀번호:", self.password_input)
+
+        # 키 파일 경로 (비밀번호 행 바로 아래에 배치)
+        key_row = QHBoxLayout()
+        self.key_path_input = QLineEdit()
+        self.key_path_input.setPlaceholderText("~/.ssh/id_rsa (기본키 자동 탐색)")
+        self.key_path_input.setReadOnly(False)
+        key_row.addWidget(self.key_path_input, 1)
+
+        self.browse_key_btn = QPushButton("📂 찾기")
+        self.browse_key_btn.clicked.connect(self._browse_key_file)
+        key_row.addWidget(self.browse_key_btn)
+
+        self.key_path_label = QLabel("개인키 파일:")
+        form.addRow(self.key_path_label, key_row)
+
+        # ---
 
         self.remote_path_input = QLineEdit()
         self.remote_path_input.setPlaceholderText("예: /var/www/html")
@@ -79,6 +111,14 @@ class SettingsDialog(QDialog):
         self.port_input.setValue(int(self.settings.get("port", 22)))
         self.username_input.setText(self.settings.get("username", ""))
         self.password_input.setText(self.settings.get("password", ""))
+        self.key_path_input.setText(self.settings.get("key_path", ""))
+
+        use_key = self.settings.get("use_key", False)
+        if use_key:
+            self.key_radio.setChecked(True)
+        else:
+            self.password_radio.setChecked(True)
+
         self.remote_path_input.setText(self.settings.get("remote_path", "/var/www/html"))
         self.gallery_file_input.setText(self.settings.get("gallery_file", "gallery.html"))
 
@@ -88,9 +128,29 @@ class SettingsDialog(QDialog):
             "port": self.port_input.value(),
             "username": self.username_input.text().strip(),
             "password": self.password_input.text().strip(),
+            "use_key": self.key_radio.isChecked(),
+            "key_path": self.key_path_input.text().strip(),
             "remote_path": self.remote_path_input.text().strip(),
             "gallery_file": self.gallery_file_input.text().strip(),
         }
+
+    def _on_auth_changed(self):
+        """인증 방식 전환 시 UI 업데이트"""
+        use_key = self.key_radio.isChecked()
+        self.password_input.setVisible(not use_key)
+        self.key_path_input.setVisible(use_key)
+        self.browse_key_btn.setVisible(use_key)
+        self.key_path_label.setVisible(use_key)
+
+    def _browse_key_file(self):
+        """개인키 파일 선택 다이얼로그"""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "개인키 파일 선택",
+            os.path.expanduser("~/.ssh"),
+            "SSH Key Files (*);;All Files (*)"
+        )
+        if path:
+            self.key_path_input.setText(path)
 
     def test_connection(self):
         """설정값으로 SSH 연결 테스트"""
