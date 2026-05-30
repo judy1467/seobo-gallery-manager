@@ -133,17 +133,9 @@ class SSHClient:
         except Exception as e:
             return None, f"파일 접근 오류 ({remote_path}): {str(e)}"
         try:
-            with self._sftp.open(remote_path, "r", encoding="utf-8") as f:
+            with self._sftp.open(remote_path, "r") as f:
                 content = f.read()
             return content, ""
-        except UnicodeDecodeError:
-            # UTF-8 실패 시 시스템 기본 인코딩으로 재시도
-            try:
-                with self._sftp.open(remote_path, "r") as f:
-                    content = f.read()
-                return content, ""
-            except Exception as e:
-                return None, f"파일 읽기 오류 ({remote_path}): {str(e)}"
         except Exception as e:
             return None, f"파일 읽기 오류 ({remote_path}): {str(e)}"
 
@@ -152,7 +144,7 @@ class SSHClient:
         if not self._sftp:
             return False, "SFTP 연결 없음"
         try:
-            with self._sftp.open(remote_path, "w", encoding="utf-8") as f:
+            with self._sftp.open(remote_path, "w") as f:
                 f.write(content)
             return True, "파일 저장 완료"
         except Exception as e:
