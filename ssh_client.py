@@ -148,7 +148,7 @@ class SSHClient:
             return False, "SFTP 연결 없음"
         try:
             with self._sftp.open(remote_path, "w") as f:
-                f.write(content)
+                f.write(content.encode("utf-8") if isinstance(content, str) else content)
             return True, "파일 저장 완료"
         except Exception as e:
             return False, f"파일 쓰기 실패: {str(e)}"
