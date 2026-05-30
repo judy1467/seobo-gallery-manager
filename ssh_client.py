@@ -15,7 +15,7 @@ DEFAULT_SETTINGS = {
     "password": "",
     "use_key": False,
     "key_path": "",
-    "local_image_dir": "",
+    "pi_image_dir": "",
     "remote_path": "/var/www/html",
     "gallery_file": "gallery.html",
 }
@@ -180,6 +180,42 @@ class SSHClient:
                     self._sftp.stat(path)
                 except FileNotFoundError:
                     self._sftp.mkdir(path)
+
+    def list_remote_directories(self, remote_dir: str) -> Tuple[bool, List[str]]:
+        """원격 디렉토리 내 하위 폴더 목록 반환"""
+        cmd = f'find {remote_dir} -maxdepth 1 -type d ! -path "{remote_dir}" -printf "%f\\n" 2>/dev/null | sort'
+        success, output = self.exec_command(cmd)
+        if not success:
+            # fallback: ls로 시도
+            cmd = f'ls -d {remote_dir}/*/ 2>/dev/null | xargs -I{{}} basename {{}}'
+            success, output = self.exec_command(cmd)
+        if success and output.strip():
+            return True, [d.strip() for d in output.split("\n") if d.strip()]
+        return True, []
+
+    def list_remote_images(self, remote_dir: str) -> Tuple[bool, List[str]]:
+        """원격 디렉토리 내 이미지 파일 목록 반환 (전체 경로)"""
+        cmd = (
+            f'find {remote_dir} -maxdepth 1 -type f '
+            r'\( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" '
+            r'-o -iname "*.bmp" -o -iname "*.tiff" -o -iname "*.tif" '
+            r'-o -iname "*.webp" \) 2>/dev/null | sort'
+        )
+        success, output = self.exec_command(cmd)
+        if success and output.strip():
+            return True, [f.strip() for f in output.split("\n") if f.strip()]
+        return True, []
+
+    def download_file(self, remote_path: str, local_path: str) -> Tuple[bool, str]:
+        """원격 파일을 로컬로 다운로드"""
+        if not self._sftp:
+            return False, "SFTP 연결 없음"
+        try:
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+            self._sftp.get(remote_path, local_path)
+            return True, f"다운로드 완료: {os.path.basename(remote_path)}"
+        except Exception as e:
+            return False, f"다운로드 실패: {str(e)}"
 
     def get_next_image_number(self) -> int:
         """원격 서버에서 다음 sustube 이미지 번호를 찾는다."""
