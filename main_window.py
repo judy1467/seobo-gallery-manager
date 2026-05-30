@@ -191,24 +191,22 @@ class GalleryManager(QMainWindow):
         self.clear_btn = QPushButton("🗑️ 초기화")
         self.clear_btn.clicked.connect(self.clear_images)
         btn_row.addWidget(self.clear_btn)
+
+        btn_row.addStretch()
+        self.img_count_label = QLabel("선택한 이미지: 0개")
+        self.img_count_label.setStyleSheet("color: #6b7280; font-size: 12px;")
+        btn_row.addWidget(self.img_count_label)
         group_layout.addLayout(btn_row)
 
-        # 이미지 리스트
-        self.image_list = QListWidget()
-        self.image_list.setSpacing(2)
-        self.image_list.setMinimumHeight(130)
-        self.image_list.currentRowChanged.connect(self._on_image_selected)
-        group_layout.addWidget(self.image_list, 1)
-
-        # 미리보기
+        # 미리보기 (크게)
         self.preview_label = QLabel("이미지를 선택하면 미리보기가 표시됩니다.")
         self.preview_label.setAlignment(Qt.AlignCenter)
-        self.preview_label.setMinimumHeight(120)
+        self.preview_label.setMinimumHeight(240)
         self.preview_label.setStyleSheet(
             "background: #f8fafc; border: 1px dashed #cbd5e1; "
             "border-radius: 6px; color: #94a3b8;"
         )
-        group_layout.addWidget(self.preview_label)
+        group_layout.addWidget(self.preview_label, 1)
 
         # 구분선
         sep = QFrame()
@@ -216,13 +214,20 @@ class GalleryManager(QMainWindow):
         sep.setStyleSheet("color: #e2e8f0;")
         group_layout.addWidget(sep)
 
-        # 원격 폴더 목록 (공정 사진 대상)
+        # 원격 폴더 목록 (공정 사진 대상) - 글씨색 명시
         folder_label = QLabel("라즈베리파이 폴더 (⚙️ 공정 사진 추가 대상)")
         folder_label.setStyleSheet("font-weight: 600; color: #475569; font-size: 12px;")
         group_layout.addWidget(folder_label)
 
         self.process_folder_list = QListWidget()
-        self.process_folder_list.setMinimumHeight(100)
+        self.process_folder_list.setMinimumHeight(90)
+        self.process_folder_list.setStyleSheet(
+            "QListWidget { background: #ffffff; color: #1e293b; "
+            "border: 1px solid #e2e8f0; border-radius: 4px; }"
+            "QListWidget::item { padding: 4px 8px; }"
+            "QListWidget::item:selected { background: #dbeafe; color: #1e40af; }"
+            "QListWidget::item:hover { background: #f1f5f9; }"
+        )
         self.process_folder_list.itemClicked.connect(self._on_process_folder_selected)
         group_layout.addWidget(self.process_folder_list)
 
@@ -359,42 +364,39 @@ class GalleryManager(QMainWindow):
             "이미지 파일 (*.jpg *.jpeg *.png *.bmp *.tiff *.tif *.webp);;모든 파일 (*.*)",
         )
         if files:
-            # 지원 포맷만 필터링
             valid = [f for f in files if is_supported_image(f)]
             if not valid:
                 QMessageBox.warning(self, "지원 안됨", "지원하는 이미지 형식이 없습니다.\n(JPG, PNG, BMP, TIFF, WebP)")
                 return
             self.selected_images = valid
-            self._refresh_image_list()
+            self.img_count_label.setText(f"선택한 이미지: {len(valid)}개")
             self._show_preview(valid[0])
             self.log(f"📎 {len(valid)}개 이미지 선택됨")
+            self._update_process_add_button()
 
     def clear_images(self):
         self.selected_images = []
-        self.image_list.clear()
+        self.img_count_label.setText("선택한 이미지: 0개")
         self.preview_label.setText("이미지를 선택하면 미리보기가 표시됩니다.")
         self.preview_label.setPixmap(QPixmap())
-        self.preview_label.setStyleSheet("background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; color: #94a3b8;")
-
-    def _refresh_image_list(self):
-        self.image_list.clear()
-        for path in self.selected_images:
-            item = QListWidgetItem(os.path.basename(path))
-            self.image_list.addItem(item)
-        if self.selected_images:
-            self.image_list.setCurrentRow(0)
+        self.preview_label.setStyleSheet(
+            "background: #f8fafc; border: 1px dashed #cbd5e1; "
+            "border-radius: 6px; color: #94a3b8;"
+        )
+        self._update_process_add_button()
 
     def _show_preview(self, path: str):
         pixmap = QPixmap(path)
         if not pixmap.isNull():
             scaled = pixmap.scaled(
-                self.preview_label.width(),
-                180,
+                360, 280,
                 Qt.KeepAspectRatio,
                 Qt.SmoothTransformation,
             )
             self.preview_label.setPixmap(scaled)
-            self.preview_label.setStyleSheet("background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px;")
+            self.preview_label.setStyleSheet(
+                "background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px;"
+            )
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -437,18 +439,6 @@ class GalleryManager(QMainWindow):
         has_folder = self.selected_process_folder is not None
         has_images = len(self.selected_images) > 0
         self.process_add_btn.setEnabled(has_folder and has_images)
-
-    def _on_image_selected(self, row):
-        """이미지 리스트에서 선택 시 미리보기"""
-        if 0 <= row < len(self.selected_images):
-            img_path = self.selected_images[row]
-            pixmap = QPixmap(img_path)
-            if not pixmap.isNull():
-                self.preview_label.setPixmap(
-                    pixmap.scaled(280, 140, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                )
-            else:
-                self.preview_label.setText(f"미리보기 불가\n{os.path.basename(img_path)}")
 
     def refresh_process_folders(self):
         """라즈베리파이의 이미지 폴더 하위 디렉토리 목록 갱신 (SSH)"""
