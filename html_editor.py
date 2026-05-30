@@ -1,7 +1,7 @@
 """Gallery.html 편집기 - productGroups 배열 및 공정 사진 HTML 파싱/수정"""
 
 import re
-from typing import List, Dict, Optional, Tuple
+from typing import List, Optional, Tuple
 
 # 공정 폴더명 → 한글 caption 매핑
 PROCESS_CAPTIONS = {
@@ -13,67 +13,6 @@ PROCESS_CAPTIONS = {
     "wash": "세척",
     "sustube": "제품",
 }
-
-PROCESS_FOLDERS = ["barrel", "cut", "dry", "inspect", "package", "wash"]
-
-
-def find_product_groups_js(html: str) -> Optional[str]:
-    """HTML에서 const productGroups = [...] 배열을 찾아 반환"""
-    # "const productGroups = [" 로 시작해서 "];" 로 끝나는 부분
-    match = re.search(
-        r"const\s+productGroups\s*=\s*\[(.*?)\];",
-        html,
-        re.DOTALL,
-    )
-    if match:
-        return match.group(0)
-    return None
-
-
-def parse_caption_from_images(html: str) -> Dict[str, int]:
-    """HTML 내 sustube 이미지 파일명을 분석해 caption별 이미지 수를 반환"""
-    pattern = r'\{[^}]*?caption\s*:\s*"([^"]+)"[^}]*?images\s*:\s*\[([^\]]*?)\][^}]*?\}'
-    groups = {}
-    for m in re.finditer(pattern, html, re.DOTALL):
-        caption = m.group(1)
-        images_block = m.group(2)
-        img_count = len(re.findall(r'\{[^}]*?\}', images_block))
-        groups[caption] = img_count
-    return groups
-
-
-def extract_full_image_paths(html: str, caption: str) -> List[str]:
-    """특정 caption에 해당하는 sustube 파일명들을 추출"""
-    pattern = rf'caption\s*:\s*"{re.escape(caption)}"[^}}]*?images\s*:\s*\[(.*?)\]'
-    m = re.search(pattern, html, re.DOTALL)
-    if not m:
-        return []
-    return re.findall(r'sustube(\d+)', m.group(1))
-
-
-def find_max_image_number(html: str) -> int:
-    """HTML 내 sustube 이미지 중 가장 큰 번호를 반환"""
-    numbers = [int(x) for x in re.findall(r'sustube(\d+)', html)]
-    return max(numbers) if numbers else 0
-
-
-def get_all_captions(html: str) -> List[Dict]:
-    """현재 등록된 모든 제품 정보를 dict 리스트로 반환"""
-    pattern = r'\{\s*caption\s*:\s*"([^"]*)"(?:\s*,\s*date\s*:\s*"([^"]*)")?\s*,\s*images\s*:\s*\[(.*?)\]\s*\}'
-    results = []
-    for m in re.finditer(pattern, html, re.DOTALL):
-        caption = m.group(1)
-        date = m.group(2) if m.group(2) else ""
-        images_block = m.group(3)
-        images = re.findall(r'sustube(\d+)', images_block)
-        results.append({
-            "caption": caption,
-            "date": date,
-            "images": images,
-            "image_count": len(images),
-        })
-    return results
-
 
 def generate_new_entry(caption: str, date: str, image_numbers: List[int]) -> str:
     """

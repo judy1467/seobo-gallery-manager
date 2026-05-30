@@ -197,30 +197,6 @@ class SSHClient:
             return True, [d.strip() for d in output.split("\n") if d.strip()]
         return True, []
 
-    def list_remote_images(self, remote_dir: str) -> Tuple[bool, List[str]]:
-        """원격 디렉토리 내 이미지 파일 목록 반환 (전체 경로)"""
-        cmd = (
-            f'find {remote_dir} -maxdepth 1 -type f '
-            r'\( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" '
-            r'-o -iname "*.bmp" -o -iname "*.tiff" -o -iname "*.tif" '
-            r'-o -iname "*.webp" \) 2>/dev/null | sort'
-        )
-        success, output = self.exec_command(cmd)
-        if success and output.strip():
-            return True, [f.strip() for f in output.split("\n") if f.strip()]
-        return True, []
-
-    def download_file(self, remote_path: str, local_path: str) -> Tuple[bool, str]:
-        """원격 파일을 로컬로 다운로드"""
-        if not self._sftp:
-            return False, "SFTP 연결 없음"
-        try:
-            os.makedirs(os.path.dirname(local_path), exist_ok=True)
-            self._sftp.get(remote_path, local_path)
-            return True, f"다운로드 완료: {os.path.basename(remote_path)}"
-        except Exception as e:
-            return False, f"다운로드 실패: {str(e)}"
-
     def get_next_image_number(self) -> int:
         """원격 서버에서 다음 sustube 이미지 번호를 찾는다."""
         # 1) sustube*.webp 파일을 ls로 정렬하여 가장 큰 번호 찾기
@@ -285,15 +261,6 @@ class SSHClient:
     def get_remote_process_folder(self, folder_name: str) -> str:
         """공정 사진 폴더의 원격 경로"""
         return f'{self.settings["remote_path"]}/images/{folder_name}'
-
-    def get_remote_gallery_html(self) -> Optional[str]:
-        """원격 gallery.html 읽기"""
-        remote_file = f'{self.settings["remote_path"]}/{self.settings["gallery_file"]}'
-        content, err = self.read_remote_file(remote_file)
-        if err:
-            # 에러는 caller에서 처리하도록 None 반환
-            return None
-        return content
 
     def get_remote_gallery_path(self) -> str:
         """gallery.html의 전체 원격 경로"""

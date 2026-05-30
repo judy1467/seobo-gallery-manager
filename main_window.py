@@ -1,4 +1,5 @@
 import os
+import shutil
 import tempfile
 from typing import Optional
 
@@ -33,7 +34,6 @@ class GalleryManager(QMainWindow):
         self.ssh = SSHClient()
         self.selected_images: list[str] = []  # 선택된 로컬 이미지 경로
         self.current_preview_index: int = 0   # 현재 미리보기 중인 이미지 인덱스
-        self.converted_files: list[str] = []  # 변환된 WebP 파일 (cleanup용)
         self.next_image_number = 0
         self.selected_process_folder: Optional[str] = None  # 선택된 공정 폴더
         self.process_folders: list[str] = []  # 원격 폴더 목록
@@ -371,7 +371,6 @@ class GalleryManager(QMainWindow):
             self.conn_label.setText(f"● 연결됨 ({host})")
             self.conn_label.setStyleSheet("color: #16a34a; font-weight: 600;")
             self.connect_btn.setText("🔌 연결 종료")
-            self.photo_add_btn.setEnabled(True)
             self._update_add_button()
         else:
             self.conn_label.setText("● 연결 안됨")
@@ -409,7 +408,7 @@ class GalleryManager(QMainWindow):
             self.img_count_label.setText(f"선택한 이미지: {len(valid)}개")
             self._show_current_preview()
             self.log(f"📎 {len(valid)}개 이미지 선택됨")
-            self._update_process_add_button()
+            self._update_add_button()
 
     def clear_images(self):
         self.selected_images = []
@@ -424,7 +423,7 @@ class GalleryManager(QMainWindow):
         self.prev_btn.setEnabled(False)
         self.next_btn.setEnabled(False)
         self.preview_index_label.setText("")
-        self._update_process_add_button()
+        self._update_add_button()
 
     def _show_current_preview(self):
         """현재 인덱스의 이미지를 미리보기에 표시하고 네비게이션 버튼 상태 갱신"""
@@ -451,12 +450,6 @@ class GalleryManager(QMainWindow):
         self.prev_btn.setEnabled(n > 1 and idx > 0)
         self.next_btn.setEnabled(n > 1 and idx < n - 1)
         self.preview_index_label.setText(f"{idx + 1} / {n}")
-
-    def _update_process_add_button(self):
-        """📷 사진 추가 버튼 활성화 조건 체크 (폴더 선택 + 이미지 선택)"""
-        has_folder = self.selected_process_folder is not None
-        has_images = len(self.selected_images) > 0
-        self.photo_add_btn.setEnabled(has_folder and has_images)
 
     def _prev_preview(self):
         if self.current_preview_index > 0:
@@ -603,7 +596,6 @@ class GalleryManager(QMainWindow):
         self.photo_add_btn.setEnabled(False)
         self.photo_add_btn.setText("⏳ 처리중...")
 
-        import shutil
         temp_dir = tempfile.mkdtemp(prefix=f"servo_{folder}_")
         image_numbers = []
         full_upload_paths = []
@@ -782,10 +774,9 @@ class GalleryManager(QMainWindow):
             QMessageBox.critical(self, "오류", f"작업 중 오류가 발생했습니다:\n{str(e)}")
         finally:
             # 임시 디렉토리 정리
-            import shutil
             try:
                 shutil.rmtree(temp_dir, ignore_errors=True)
             except Exception:
                 pass
-            self.photo_add_btn.setEnabled(True)
             self.photo_add_btn.setText("📷 사진 추가")
+            self._update_add_button()
