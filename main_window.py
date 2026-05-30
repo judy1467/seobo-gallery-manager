@@ -325,17 +325,11 @@ class GalleryManager(QMainWindow):
         layout = QHBoxLayout(bar)
         layout.setContentsMargins(12, 8, 12, 8)
 
-        self.add_btn = QPushButton("✅ 제품 사진 추가")
-        self.add_btn.setObjectName("addBtn")
-        self.add_btn.setEnabled(False)
-        self.add_btn.clicked.connect(self.add_to_gallery)
-        layout.addWidget(self.add_btn)
-
-        self.process_add_btn = QPushButton("⚙️ 공정 사진 추가")
-        self.process_add_btn.setObjectName("addBtn")
-        self.process_add_btn.setEnabled(False)
-        self.process_add_btn.clicked.connect(self.add_process_photos)
-        layout.addWidget(self.process_add_btn)
+        self.photo_add_btn = QPushButton("📷 사진 추가")
+        self.photo_add_btn.setObjectName("addBtn")
+        self.photo_add_btn.setEnabled(False)
+        self.photo_add_btn.clicked.connect(self.add_photos)
+        layout.addWidget(self.photo_add_btn)
 
         layout.addStretch()
 
@@ -377,14 +371,13 @@ class GalleryManager(QMainWindow):
             self.conn_label.setText(f"● 연결됨 ({host})")
             self.conn_label.setStyleSheet("color: #16a34a; font-weight: 600;")
             self.connect_btn.setText("🔌 연결 종료")
-            self.add_btn.setEnabled(True)
-            self._update_process_add_button()
+            self.photo_add_btn.setEnabled(True)
+            self._update_add_button()
         else:
             self.conn_label.setText("● 연결 안됨")
             self.conn_label.setStyleSheet("color: #ef4444; font-weight: 600;")
             self.connect_btn.setText("🔌 연결")
-            self.add_btn.setEnabled(False)
-            self.process_add_btn.setEnabled(False)
+            self.photo_add_btn.setEnabled(False)
             self.number_label.setText("연결 후 확인")
 
     def open_settings(self):
@@ -502,7 +495,7 @@ class GalleryManager(QMainWindow):
     def _on_process_folder_selected(self, item):
         """공정 폴더 선택 시"""
         self.selected_process_folder = item.text()
-        self._update_process_add_button()
+        self._update_add_button()
         self.log(f"📁 선택한 폴더: {self.selected_process_folder}")
 
         # 선택한 폴더 기준 다음 번호 표시
@@ -515,17 +508,17 @@ class GalleryManager(QMainWindow):
                 self.number_label.setText(f"{self.selected_process_folder}?")
                 self.log(f"  ⚠️ 번호 확인 실패: {e}")
 
-    def _update_process_add_button(self):
-        """공정 사진 추가 버튼 활성화 조건 체크"""
+    def _update_add_button(self):
+        """사진 추가 버튼 활성화 조건 체크"""
         has_folder = self.selected_process_folder is not None
         has_images = len(self.selected_images) > 0
-        self.process_add_btn.setEnabled(has_folder and has_images)
+        self.photo_add_btn.setEnabled(has_folder and has_images)
 
     def refresh_process_folders(self):
         """라즈베리파이의 이미지 폴더 하위 디렉토리 목록 갱신 (SSH)"""
         self.process_folder_list.clear()
         self.selected_process_folder = None
-        self._update_process_add_button()
+        self._update_add_button()
 
         if not self.ssh.is_connected():
             self.process_folder_list.addItem("⚠️ 라즈베리파이에 연결 후 사용해주세요.")
@@ -553,6 +546,17 @@ class GalleryManager(QMainWindow):
             self.process_folder_list.addItem(f"⚠️ 오류: {e}")
             self.log(f"⚠️ 폴더 목록 오류: {e}")
 
+    def add_photos(self):
+        """사진 추가 - 선택한 폴더에 따라 제품/공정 자동 분기"""
+        folder = self.selected_process_folder
+        if not folder:
+            QMessageBox.warning(self, "선택 필요", "라즈베리파이 폴더 목록에서 폴더를 선택해주세요.")
+            return
+        if folder == "sustube":
+            self.add_to_gallery()
+        else:
+            self.add_process_photos()
+
     def add_process_photos(self):
         """선택한 공정 폴더에 PC 이미지를 WebP 변환 → 업로드"""
         if not self.ssh.is_connected():
@@ -579,8 +583,8 @@ class GalleryManager(QMainWindow):
             return
 
         self.log(f"🔄 공정 사진 처리 시작... (폴더: {folder}, {len(self.selected_images)}개)")
-        self.process_add_btn.setEnabled(False)
-        self.process_add_btn.setText("⏳ 처리중...")
+        self.photo_add_btn.setEnabled(False)
+        self.photo_add_btn.setText("⏳ 처리중...")
 
         import shutil
         temp_dir = tempfile.mkdtemp(prefix=f"servo_{folder}_")
@@ -657,8 +661,8 @@ class GalleryManager(QMainWindow):
             QMessageBox.critical(self, "오류", f"작업 중 오류가 발생했습니다.\n\n{e}")
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
-            self.process_add_btn.setEnabled(True)
-            self.process_add_btn.setText("⚙️ 공정 사진 추가")
+            self.photo_add_btn.setEnabled(True)
+            self.photo_add_btn.setText("📷 사진 추가")
             self.load_remote_info()
 
     def add_to_gallery(self):
@@ -678,8 +682,8 @@ class GalleryManager(QMainWindow):
 
         # 1. 이미지 변환 (WebP)
         self.log(f"🔄 WebP 변환 시작... ({len(self.selected_images)}개)")
-        self.add_btn.setEnabled(False)
-        self.add_btn.setText("⏳ 처리중...")
+        self.photo_add_btn.setEnabled(False)
+        self.photo_add_btn.setText("⏳ 처리중...")
 
         temp_dir = tempfile.mkdtemp(prefix="servo_gallery_")
         image_numbers = []
@@ -766,5 +770,5 @@ class GalleryManager(QMainWindow):
                 shutil.rmtree(temp_dir, ignore_errors=True)
             except Exception:
                 pass
-            self.add_btn.setEnabled(True)
-            self.add_btn.setText("✅ 갤러리에 추가")
+            self.photo_add_btn.setEnabled(True)
+            self.photo_add_btn.setText("📷 사진 추가")
