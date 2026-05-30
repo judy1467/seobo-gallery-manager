@@ -32,6 +32,7 @@ class GalleryManager(QMainWindow):
 
         self.ssh = SSHClient()
         self.selected_images: list[str] = []  # 선택된 로컬 이미지 경로
+        self.current_preview_index: int = 0   # 현재 미리보기 중인 이미지 인덱스
         self.converted_files: list[str] = []  # 변환된 WebP 파일 (cleanup용)
         self.next_image_number = 0
         self.selected_process_folder: Optional[str] = None  # 선택된 공정 폴더
@@ -199,6 +200,12 @@ class GalleryManager(QMainWindow):
         group_layout.addLayout(btn_row)
 
         # 미리보기 (크게)
+        preview_frame = QWidget()
+        preview_frame.setStyleSheet("background: transparent;")
+        preview_layout = QVBoxLayout(preview_frame)
+        preview_layout.setSpacing(4)
+        preview_layout.setContentsMargins(0, 0, 0, 0)
+
         self.preview_label = QLabel("이미지를 선택하면 미리보기가 표시됩니다.")
         self.preview_label.setAlignment(Qt.AlignCenter)
         self.preview_label.setMinimumHeight(240)
@@ -206,7 +213,36 @@ class GalleryManager(QMainWindow):
             "background: #f8fafc; border: 1px dashed #cbd5e1; "
             "border-radius: 6px; color: #94a3b8;"
         )
-        group_layout.addWidget(self.preview_label, 1)
+        preview_layout.addWidget(self.preview_label, 1)
+
+        # 이전/다음 버튼
+        nav_row = QHBoxLayout()
+        nav_row.setSpacing(4)
+        self.prev_btn = QPushButton("◀ 이전")
+        self.prev_btn.setFixedHeight(28)
+        self.prev_btn.setStyleSheet(
+            "QPushButton { padding: 2px 12px; font-size: 12px; font-weight: 500; }"
+        )
+        self.prev_btn.setEnabled(False)
+        self.prev_btn.clicked.connect(self._prev_preview)
+        nav_row.addWidget(self.prev_btn)
+
+        self.preview_index_label = QLabel("")
+        self.preview_index_label.setAlignment(Qt.AlignCenter)
+        self.preview_index_label.setStyleSheet("color: #6b7280; font-size: 12px;")
+        nav_row.addWidget(self.preview_index_label, 1)
+
+        self.next_btn = QPushButton("다음 ▶")
+        self.next_btn.setFixedHeight(28)
+        self.next_btn.setStyleSheet(
+            "QPushButton { padding: 2px 12px; font-size: 12px; font-weight: 500; }"
+        )
+        self.next_btn.setEnabled(False)
+        self.next_btn.clicked.connect(self._next_preview)
+        nav_row.addWidget(self.next_btn)
+        preview_layout.addLayout(nav_row)
+
+        group_layout.addWidget(preview_frame, 1)
 
         # 구분선
         sep = QFrame()
@@ -238,6 +274,10 @@ class GalleryManager(QMainWindow):
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setSpacing(8)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        # right splitter (제품 정보 | 작업 로그)
+        right_splitter = QSplitter(Qt.Vertical)
 
         # 제품 정보
         info_group = QGroupBox("📝 제품 정보")
@@ -261,18 +301,21 @@ class GalleryManager(QMainWindow):
         self.number_label.setStyleSheet("font-weight: 600; color: #2563eb;")
         info_layout.addWidget(self.number_label, 2, 1)
 
-        info_layout.setRowStretch(3, 1)
-        layout.addWidget(info_group)
+        # 제품 정보는 컴팩트하게 — 여분 stretch 제거
+        right_splitter.addWidget(info_group)
 
-        # 로그 영역
+        # 로그 영역 (크게)
         log_group = QGroupBox("📋 작업 로그")
         log_layout = QVBoxLayout(log_group)
         self.log_area = QTextEdit()
         self.log_area.setObjectName("logArea")
         self.log_area.setReadOnly(True)
-        self.log_area.setMaximumHeight(180)
+        # 최대높이 제한 제거 — 로그를 넉넉히 보여줌
         log_layout.addWidget(self.log_area)
-        layout.addWidget(log_group)
+        right_splitter.addWidget(log_group)
+
+        right_splitter.setSizes([180, 300])
+        layout.addWidget(right_splitter, 1)
 
         return widget
 
@@ -369,13 +412,15 @@ class GalleryManager(QMainWindow):
                 QMessageBox.warning(self, "지원 안됨", "지원하는 이미지 형식이 없습니다.\n(JPG, PNG, BMP, TIFF, WebP)")
                 return
             self.selected_images = valid
+            self.current_preview_index = 0
             self.img_count_label.setText(f"선택한 이미지: {len(valid)}개")
-            self._show_preview(valid[0])
+            self._show_current_preview()
             self.log(f"📎 {len(valid)}개 이미지 선택됨")
             self._update_process_add_button()
 
     def clear_images(self):
         self.selected_images = []
+        self.current_preview_index = 0
         self.img_count_label.setText("선택한 이미지: 0개")
         self.preview_label.setText("이미지를 선택하면 미리보기가 표시됩니다.")
         self.preview_label.setPixmap(QPixmap())
@@ -383,10 +428,19 @@ class GalleryManager(QMainWindow):
             "background: #f8fafc; border: 1px dashed #cbd5e1; "
             "border-radius: 6px; color: #94a3b8;"
         )
+        self.prev_btn.setEnabled(False)
+        self.next_btn.setEnabled(False)
+        self.preview_index_label.setText("")
         self._update_process_add_button()
 
-    def _show_preview(self, path: str):
-        pixmap = QPixmap(path)
+    def _show_current_preview(self):
+        """현재 인덱스의 이미지를 미리보기에 표시하고 네비게이션 버튼 상태 갱신"""
+        n = len(self.selected_images)
+        if n == 0:
+            return
+        idx = self.current_preview_index
+        img_path = self.selected_images[idx]
+        pixmap = QPixmap(img_path)
         if not pixmap.isNull():
             scaled = pixmap.scaled(
                 360, 280,
@@ -397,6 +451,23 @@ class GalleryManager(QMainWindow):
             self.preview_label.setStyleSheet(
                 "background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px;"
             )
+        else:
+            self.preview_label.setText(f"미리보기 불가\n{os.path.basename(img_path)}")
+
+        # 네비게이션 버튼 상태
+        self.prev_btn.setEnabled(n > 1 and idx > 0)
+        self.next_btn.setEnabled(n > 1 and idx < n - 1)
+        self.preview_index_label.setText(f"{idx + 1} / {n}")
+
+    def _prev_preview(self):
+        if self.current_preview_index > 0:
+            self.current_preview_index -= 1
+            self._show_current_preview()
+
+    def _next_preview(self):
+        if self.current_preview_index < len(self.selected_images) - 1:
+            self.current_preview_index += 1
+            self._show_current_preview()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -433,6 +504,16 @@ class GalleryManager(QMainWindow):
         self.selected_process_folder = item.text()
         self._update_process_add_button()
         self.log(f"📁 선택한 폴더: {self.selected_process_folder}")
+
+        # 선택한 폴더 기준 다음 번호 표시
+        if self.ssh.is_connected():
+            try:
+                next_num = self.ssh.get_next_process_number(self.selected_process_folder)
+                self.number_label.setText(f"{self.selected_process_folder}{next_num}")
+                self.log(f"  🔢 다음 번호: {self.selected_process_folder}{next_num}")
+            except Exception as e:
+                self.number_label.setText(f"{self.selected_process_folder}?")
+                self.log(f"  ⚠️ 번호 확인 실패: {e}")
 
     def _update_process_add_button(self):
         """공정 사진 추가 버튼 활성화 조건 체크"""
