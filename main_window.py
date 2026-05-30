@@ -447,10 +447,16 @@ class GalleryManager(QMainWindow):
         else:
             self.preview_label.setText(f"미리보기 불가\n{os.path.basename(img_path)}")
 
-        # 네비게이션 버튼 상태
+        # 네비게이션 버튼 상태 (if/else 밖에서 항상 실행)
         self.prev_btn.setEnabled(n > 1 and idx > 0)
         self.next_btn.setEnabled(n > 1 and idx < n - 1)
         self.preview_index_label.setText(f"{idx + 1} / {n}")
+
+    def _update_process_add_button(self):
+        """📷 사진 추가 버튼 활성화 조건 체크 (폴더 선택 + 이미지 선택)"""
+        has_folder = self.selected_process_folder is not None
+        has_images = len(self.selected_images) > 0
+        self.photo_add_btn.setEnabled(has_folder and has_images)
 
     def _prev_preview(self):
         if self.current_preview_index > 0:
