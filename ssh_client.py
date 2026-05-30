@@ -135,6 +135,9 @@ class SSHClient:
         try:
             with self._sftp.open(remote_path, "r") as f:
                 content = f.read()
+            # bytes면 문자열로 디코딩
+            if isinstance(content, bytes):
+                content = content.decode("utf-8", errors="replace")
             return content, ""
         except Exception as e:
             return None, f"파일 읽기 오류 ({remote_path}): {str(e)}"
