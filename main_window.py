@@ -40,11 +40,12 @@ class GalleryManager(QMainWindow):
         self.resize(1000, 720)
 
         self.ssh = SSHClient()
-        self.selected_images: list[str] = []  # 선택된 로컬 이미지 경로
+        self.selected_images: list[str] = []  # 선택된 로컬 이미지 경로 (제품 사진)
+        self.process_selected_images: list[str] = []  # 선택된 로컬 이미지 경로 (공정 사진)
         self.converted_files: list[str] = []  # 변환된 WebP 파일 (cleanup용)
         self.next_image_number = 0
         self.selected_process_folder: Optional[str] = None  # 선택된 공정 폴더
-        self.process_folders: list[str] = []  # 로컬 이미지 폴더 목록
+        self.process_folders: list[str] = []  # 원격 폴더 목록
 
         self._build_ui()
         self._update_connection_status()
@@ -232,17 +233,33 @@ class GalleryManager(QMainWindow):
         path_row.addWidget(self.set_pi_path_btn)
         process_layout.addLayout(path_row)
 
+        # 원격 폴더 목록
         self.process_folder_list = QListWidget()
-        self.process_folder_list.setMinimumHeight(120)
+        self.process_folder_list.setMinimumHeight(100)
         self.process_folder_list.itemClicked.connect(self._on_process_folder_selected)
         process_layout.addWidget(self.process_folder_list, 1)
 
-        refresh_btn = QHBoxLayout()
+        # 로컬 이미지 선택
+        img_row = QHBoxLayout()
+        self.process_select_btn = QPushButton("➕ 사진 선택 (PC)")
+        self.process_select_btn.clicked.connect(self.select_process_images)
+        img_row.addWidget(self.process_select_btn)
+        self.process_img_count = QLabel("선택된 사진: 0개")
+        self.process_img_count.setStyleSheet("color: #6b7280;")
+        img_row.addWidget(self.process_img_count)
+        self.process_img_clear = QPushButton("🗑️")
+        self.process_img_clear.setFixedWidth(32)
+        self.process_img_clear.clicked.connect(self.clear_process_images)
+        img_row.addWidget(self.process_img_clear)
+        process_layout.addLayout(img_row)
+
+        # 새로고침
+        refresh_row = QHBoxLayout()
         self.process_refresh_btn = QPushButton("🔄 폴더 새로고침")
         self.process_refresh_btn.clicked.connect(self.refresh_process_folders)
-        refresh_btn.addWidget(self.process_refresh_btn)
-        refresh_btn.addStretch()
-        process_layout.addLayout(refresh_btn)
+        refresh_row.addWidget(self.process_refresh_btn)
+        refresh_row.addStretch()
+        process_layout.addLayout(refresh_row)
 
         layout.addWidget(process_group)
         return widget
@@ -358,7 +375,7 @@ class GalleryManager(QMainWindow):
             self.conn_label.setStyleSheet("color: #16a34a; font-weight: 600;")
             self.connect_btn.setText("🔌 연결 종료")
             self.add_btn.setEnabled(True)
-            self.process_add_btn.setEnabled(True)
+            self._update_process_add_button()
         else:
             self.conn_label.setText("● 연결 안됨")
             self.conn_label.setStyleSheet("color: #ef4444; font-weight: 600;")
@@ -477,14 +494,45 @@ class GalleryManager(QMainWindow):
     def _on_process_folder_selected(self, item):
         """공정 폴더 선택 시"""
         self.selected_process_folder = item.text()
-        self.process_add_btn.setEnabled(True)
+        self._update_process_add_button()
         self.log(f"📁 선택한 폴더: {self.selected_process_folder}")
+
+    def _update_process_add_button(self):
+        """공정 사진 추가 버튼 활성화 조건 체크"""
+        has_folder = self.selected_process_folder is not None
+        has_images = len(self.process_selected_images) > 0
+        self.process_add_btn.setEnabled(has_folder and has_images)
+
+    def select_process_images(self):
+        """PC에서 공정 사진으로 올릴 이미지 선택"""
+        files, _ = QFileDialog.getOpenFileNames(
+            self,
+            "공정 사진 이미지 선택",
+            "",
+            "이미지 파일 (*.jpg *.jpeg *.png *.bmp *.tiff *.tif *.webp);;모든 파일 (*.*)",
+        )
+        if files:
+            valid = [f for f in files if is_supported_image(f)]
+            if not valid:
+                QMessageBox.warning(self, "지원 안됨", "지원하는 이미지 형식이 없습니다.\n(JPG, PNG, BMP, TIFF, WebP)")
+                return
+            self.process_selected_images = valid
+            self.process_img_count.setText(f"선택된 사진: {len(valid)}개")
+            self.log(f"📎 공정 사진 {len(valid)}개 선택됨")
+            self._update_process_add_button()
+
+    def clear_process_images(self):
+        """공정 사진 선택 초기화"""
+        self.process_selected_images = []
+        self.process_img_count.setText("선택된 사진: 0개")
+        self._update_process_add_button()
+        self.log("🗑️ 공정 사진 선택 초기화")
 
     def refresh_process_folders(self):
         """라즈베리파이의 이미지 폴더 하위 디렉토리 목록 갱신 (SSH)"""
         self.process_folder_list.clear()
         self.selected_process_folder = None
-        self.process_add_btn.setEnabled(False)
+        self._update_process_add_button()
 
         pi_dir = self.ssh.settings.get("pi_image_dir", "")
         if pi_dir:
@@ -498,7 +546,6 @@ class GalleryManager(QMainWindow):
             self.process_folder_list.addItem("⚠️ 라즈베리파이에 연결 후 사용해주세요.")
             return
 
-        pi_dir = self.ssh.settings.get("pi_image_dir", "")
         if not pi_dir:
             self.process_folder_list.addItem("⚠️ 설정에서 라즈베리파이 이미지 폴더 경로를 지정해주세요.")
             return
@@ -506,7 +553,7 @@ class GalleryManager(QMainWindow):
         try:
             success, dirs = self.ssh.list_remote_directories(pi_dir)
             if not success:
-                self.process_folder_list.addItem(f"⚠️ 폴더 목록 읽기 실패")
+                self.process_folder_list.addItem("⚠️ 폴더 목록 읽기 실패")
                 return
 
             self.process_folders = sorted(dirs)
@@ -521,7 +568,7 @@ class GalleryManager(QMainWindow):
             self.log(f"⚠️ 폴더 목록 오류: {e}")
 
     def add_process_photos(self):
-        """선택한 공정 폴더의 사진을 라즈베리파이에서 다운로드 → 변환 → 업로드"""
+        """선택한 공정 폴더에 PC 이미지를 WebP 변환 → 업로드"""
         if not self.ssh.is_connected():
             QMessageBox.warning(self, "연결 필요", "먼저 라즈베리파이에 연결해주세요.")
             return
@@ -531,61 +578,40 @@ class GalleryManager(QMainWindow):
             QMessageBox.warning(self, "선택 필요", "공정 사진 폴더를 선택해주세요.")
             return
 
-        pi_dir = self.ssh.settings.get("pi_image_dir", "")
-        remote_folder = os.path.join(pi_dir, folder).replace("\\", "/")
-
-        # 원격 폴더에서 이미지 파일 목록 읽기
-        success, remote_images = self.ssh.list_remote_images(remote_folder)
-        if not success:
-            QMessageBox.warning(self, "오류", f"원격 폴더 읽기 실패:\n{remote_folder}")
-            return
-        if not remote_images:
-            QMessageBox.warning(
-                self, "이미지 없음",
-                f"라즈베리파이 '{folder}' 폴더에 이미지 파일이 없습니다.\n"
-                f"경로: {remote_folder}"
-            )
+        if not self.process_selected_images:
+            QMessageBox.warning(self, "선택 필요", "PC에서 업로드할 사진을 선택해주세요.\n(➕ 사진 선택 (PC) 버튼)")
             return
 
         reply = QMessageBox.question(
             self, "공정 사진 추가",
-            f"📁 {folder} ({PROCESS_CAPTIONS.get(folder, folder)})\n"
-            f"🖼️ 라즈베리파이에서 {len(remote_images)}개 이미지 발견\n"
-            f"다운로드 → WebP 변환 → 업로드합니다.\n계속하시겠습니까?",
+            f"📁 대상 폴더: {folder} ({PROCESS_CAPTIONS.get(folder, folder)})\n"
+            f"🖼️ {len(self.process_selected_images)}개 이미지 업로드\n"
+            f"계속하시겠습니까?",
             QMessageBox.Yes | QMessageBox.No,
         )
         if reply != QMessageBox.Yes:
             return
 
-        # 작업 시작
-        self.log(f"🔄 공정 사진 처리 시작... (폴더: {folder}, {len(remote_images)}개)")
+        self.log(f"🔄 공정 사진 처리 시작... (폴더: {folder}, {len(self.process_selected_images)}개)")
         self.process_add_btn.setEnabled(False)
         self.process_add_btn.setText("⏳ 처리중...")
 
         import shutil
         temp_dir = tempfile.mkdtemp(prefix=f"servo_{folder}_")
-        download_dir = os.path.join(temp_dir, "download")
-        os.makedirs(download_dir, exist_ok=True)
         image_numbers = []
         full_upload_paths = []
         thumb_upload_paths = []
 
         try:
-            # 원격에서 다음 번호 확인
+            # 원격에서 마지막 번호 확인
             next_num = self.ssh.get_next_process_number(folder)
+            self.log(f"  🔢 다음 번호: {folder}{next_num}")
 
-            # 1. 원격 이미지 다운로드 → WebP 변환
-            for i, remote_img in enumerate(remote_images):
-                ext = os.path.splitext(remote_img)[1]
-                local_tmp = os.path.join(download_dir, f"input{i}{ext}")
-
-                ok, msg = self.ssh.download_file(remote_img, local_tmp)
-                if not ok:
-                    raise Exception(f"다운로드 실패 ({os.path.basename(remote_img)}): {msg}")
-
+            # 1. 로컬 이미지 → WebP 변환
+            for i, img_path in enumerate(self.process_selected_images):
                 base_name = f"{folder}{next_num + i}"
                 full_path, thumb_path, error = convert_to_webp(
-                    local_tmp, temp_dir, base_name
+                    img_path, temp_dir, base_name
                 )
                 if error:
                     raise Exception(f"WebP 변환 실패 ({base_name}): {error}")
@@ -593,9 +619,9 @@ class GalleryManager(QMainWindow):
                 image_numbers.append(next_num + i)
                 full_upload_paths.append(full_path)
                 thumb_upload_paths.append(thumb_path)
-                self.log(f"  ✅ {base_name}.webp 변환 완료 ({os.path.basename(remote_img)})")
+                self.log(f"  ✅ {base_name}.webp 변환 완료")
 
-            # 2. WebP 이미지 업로드
+            # 2. WebP 업로드
             self.log("📤 WebP 업로드 중...")
             remote_base = self.ssh.get_remote_process_folder(folder)
 
@@ -605,12 +631,12 @@ class GalleryManager(QMainWindow):
                 remote_full = f"{remote_base}/{folder}{num}.webp"
                 ok, msg = self.ssh.upload_file(full_path, remote_full)
                 if not ok:
-                    raise Exception(msg)
+                    raise Exception(f"업로드 실패 ({folder}{num}.webp): {msg}")
 
                 remote_thumb = f"{remote_base}/thumbs/{folder}{num}_thumb.webp"
                 ok, msg = self.ssh.upload_file(thumb_path, remote_thumb)
                 if not ok:
-                    raise Exception(msg)
+                    raise Exception(f"썸네일 업로드 실패 ({folder}{num}_thumb.webp): {msg}")
                 self.log(f"  ✅ {folder}{num}.webp 업로드 완료")
 
             # 3. gallery.html 수정
@@ -635,9 +661,9 @@ class GalleryManager(QMainWindow):
             QMessageBox.information(
                 self, "✅ 완료",
                 f"⚙️ 공정 사진 추가 완료!\n\n"
-                f"폴더: {folder}\n"
+                f"대상 폴더: {folder}\n"
                 f"이미지: {len(image_numbers)}개\n"
-                f"파일: {', '.join(f'{folder}{n}.webp' for n in image_numbers)}"
+                f"파일명: {', '.join(f'{folder}{n}.webp' for n in image_numbers)}"
             )
 
         except Exception as e:
