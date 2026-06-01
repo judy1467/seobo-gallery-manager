@@ -15,8 +15,8 @@ from PySide6.QtGui import QPixmap
 from ssh_client import SSHClient, load_settings
 from image_processor import convert_to_webp, is_supported_image
 from html_editor import (
-    add_product_to_html,
-    add_process_to_html,
+    add_product_to_js,
+    add_process_to_js,
     PROCESS_CAPTIONS,
 )
 from settings_dialog import SettingsDialog
@@ -638,18 +638,18 @@ class GalleryManager(QMainWindow):
                     raise Exception(f"썸네일 업로드 실패 ({folder}{num}_thumb.webp): {msg}")
                 self.log(f"  ✅ {folder}{num}.webp 업로드 완료")
 
-            # 3. gallery.html 수정
-            self.log("📝 gallery.html 업데이트 중...")
-            remote_file = self.ssh.get_remote_gallery_path()
-            html, err = self.ssh.read_remote_file(remote_file)
-            if not html:
-                raise Exception(f"gallery.html 읽기 실패: {err}")
+            # 3. process-gallery-data.js 수정
+            self.log("📝 process-gallery-data.js 업데이트 중...")
+            remote_js = self.ssh.get_remote_process_js_path()
+            js_content, err = self.ssh.read_remote_file(remote_js)
+            if not js_content:
+                raise Exception(f"process-gallery-data.js 읽기 실패: {err}")
 
-            modified_html, error = add_process_to_html(html, folder, image_numbers)
+            modified_js, error = add_process_to_js(js_content, folder, image_numbers)
             if error:
                 raise Exception(error)
 
-            ok, msg = self.ssh.write_remote_file(remote_file, modified_html)
+            ok, msg = self.ssh.write_remote_file(remote_js, modified_js)
             if not ok:
                 raise Exception(msg)
 
@@ -734,20 +734,19 @@ class GalleryManager(QMainWindow):
 
                 self.log(f"  ✅ sustube{num}.webp 업로드 완료")
 
-            # 3. gallery.html 수정
-            self.log("📝 gallery.html 업데이트 중...")
+            # 3. product-gallery-data.js 수정
+            self.log("📝 product-gallery-data.js 업데이트 중...")
             date_str = self.date_input.date().toString("yyyy-MM-dd")
-            remote_file = self.ssh.get_remote_gallery_path()
-            html, err = self.ssh.read_remote_file(remote_file)
-            if not html:
-                raise Exception(f"gallery.html 읽기 실패: {err}")
+            remote_js = self.ssh.get_remote_product_js_path()
+            js_content, err = self.ssh.read_remote_file(remote_js)
+            if not js_content:
+                raise Exception(f"product-gallery-data.js 읽기 실패: {err}")
 
-            modified_html, error = add_product_to_html(html, spec, date_str, image_numbers)
+            modified_js, error = add_product_to_js(js_content, spec, date_str, image_numbers)
             if error:
                 raise Exception(error)
 
-            # 4. 수정된 HTML 업로드
-            ok, msg = self.ssh.write_remote_file(remote_file, modified_html)
+            ok, msg = self.ssh.write_remote_file(remote_js, modified_js)
             if not ok:
                 raise Exception(msg)
 

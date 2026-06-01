@@ -274,3 +274,11 @@ class SSHClient:
     def get_remote_gallery_path(self) -> str:
         """gallery.html의 전체 원격 경로"""
         return f'{self.settings["remote_path"]}/{self.settings["gallery_file"]}'
+
+    def get_remote_product_js_path(self) -> str:
+        """product-gallery-data.js의 전체 원격 경로"""
+        return f'{self.settings["remote_path"]}/product-gallery-data.js'
+
+    def get_remote_process_js_path(self) -> str:
+        """process-gallery-data.js의 전체 원격 경로"""
+        return f'{self.settings["remote_path"]}/process-gallery-data.js'
