@@ -135,8 +135,8 @@ def add_process_to_js(js_content: str, folder_name: str, image_numbers: List[int
         after_bracket = match.group(3)  # ]  ,  또는 ]\n
 
         if existing_images:
-            # 기존 이미지가 있으면 끝에 쉼표 + 새 이미지
-            new_section = before_images + existing_images + ",\n" + new_images_js + after_bracket
+            # 기존 이미지가 있으면 새 이미지를 맨 앞에 추가
+            new_section = before_images + new_images_js + ",\n" + existing_images + after_bracket
         else:
             # 빈 images 배열
             new_section = before_images + "\n" + new_images_js + after_bracket
